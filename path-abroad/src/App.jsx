@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { createRoot } from "react-dom/client";
 
 const WILL_WHATSAPP = "233595452977";
 
@@ -32,7 +31,7 @@ function Chip({ children }) {
   return <span style={{ fontSize:"11px",background:"#F9FAFB",border:"1px solid #E5E7EB",borderRadius:"4px",padding:"2px 8px",color:"#6B7280" }}>{children}</span>;
 }
 
-function App() {
+export default function App() {
   const [activeTab,   setActiveTab]   = useState("opportunities");
   const [selectedOpp, setSelectedOpp] = useState(null);
   const [toast,       setToast]       = useState(null);
@@ -474,4 +473,3 @@ function App() {
   );
 }
 
-createRoot(document.getElementById("root")).render(<App />);
