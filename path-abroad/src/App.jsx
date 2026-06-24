@@ -467,7 +467,7 @@ export default function App() {
       )}
 
       <footer style={{background:"#fff",borderTop:"1px solid #E5E7EB",padding:"16px 24px",textAlign:"center",fontSize:"11px",color:"#9CA3AF",marginTop:"40px"}}>
-        PathAbroad · Live opportunities · CV Builder · Relocation Guides · For African applicants worldwide
+        © 2026 PathAbroad by Wilberforce K. Osei · All rights reserved · pathabroad.africa
       </footer>
     </div>
   );
