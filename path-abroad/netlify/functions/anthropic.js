@@ -1,11 +1,5 @@
 // netlify/functions/anthropic.js
-// PathAbroad — secure proxy to Anthropic API.
-// Handles two request types:
-//   1. Opportunities feed  → Claude with built-in web search tool
-//   2. CV Builder          → Claude with CV-specific prompt
-//
-// Required environment variable in Netlify:
-//   ANTHROPIC_API_KEY  — from console.anthropic.com
+// CV Builder only — opportunities are now handled by fetch-opportunities + get-opportunities.
 
 exports.handler = async (event) => {
   const headers = {
@@ -23,18 +17,26 @@ exports.handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body || "{}");
-
-    // ── ROUTE 1: CV Builder ─────────────────────────────────────────────────
-    if (body.system && body.system.includes("CV advisor")) {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type":      "application/json",
-          "x-api-key":         ANTHROPIC_KEY,
-          "anthropic-version": "2023-06-01",
-          "anthropic-beta":    "prompt-caching-2024-07-31",
-        },
-        body: JSON.stringify({
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type":      "application/json",
+        "x-api-key":         ANTHROPIC_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model:      body.model      || "claude-sonnet-4-6",
+        max_tokens: body.max_tokens || 1000,
+        system:     body.system,
+        messages:   body.messages,
+      }),
+    });
+    const text = await res.text();
+    return { statusCode: res.status, headers, body: text };
+  } catch (err) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+  }
+};        body: JSON.stringify({
           model:      body.model      || "claude-sonnet-4-6",
           max_tokens: body.max_tokens || 1000,
           system: [{
