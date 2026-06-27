@@ -9,6 +9,9 @@
 [functions]
   timeout = 26
 
+[functions."fetch-opportunities"]
+  schedule = "*/30 * * * *"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
