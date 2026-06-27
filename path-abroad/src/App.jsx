@@ -31,6 +31,16 @@ function Chip({ children }) {
   return <span style={{ fontSize:"11px",background:"#F9FAFB",border:"1px solid #E5E7EB",borderRadius:"4px",padding:"2px 8px",color:"#6B7280" }}>{children}</span>;
 }
 
+// ── FIX 1: Normalise titles so "Senior QA – Remote (WFP) 2026" and
+//    "Senior QA – WFP 2026" are treated as the same opportunity ──────────────
+const normalizeTitle = (t) =>
+  (t || "")
+    .toLowerCase()
+    .replace(/\s*[\(–\-]\s*(wfp|remote|2025|2026|2027)[^)]*\)?/gi, "")
+    .replace(/\s*\d{4}.*$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
 export default function App() {
   const [activeTab,   setActiveTab]   = useState("opportunities");
   const [selectedOpp, setSelectedOpp] = useState(null);
@@ -102,6 +112,7 @@ export default function App() {
     return "#166534";
   };
 
+  // ── FIX 2: Better deduplication (URL-first) + localStorage caching ─────────
   const doFetch = useCallback(async () => {
     setLoading(true); setFetchErr(null);
     try {
@@ -111,8 +122,8 @@ export default function App() {
         body: JSON.stringify({
           model:"claude-sonnet-4-6", max_tokens:4096,
           tools:[{ type:"web_search_20250305", name:"web_search" }],
-          system:"You track live scholarships, internships, remote jobs, fellowships, and international careers for African and Ghanaian applicants worldwide. Search the web for currently open opportunities. Return ONLY a raw JSON array — no markdown, no code fences. Each item: { \"id\": \"unique_string\", \"title\": \"program name\", \"type\": \"fully-funded|partial|paid-internship|unpaid-internship\", \"job_type\": \"remote|permanent|contract|internship\", \"organization\": \"org name\", \"destination\": \"country or Global\", \"field\": \"subject area\", \"level\": \"undergraduate|masters|phd|professional|all\", \"deadline\": \"YYYY-MM-DD or Rolling or TBD\", \"funding\": \"what is covered\", \"link\": \"real https URL\", \"description\": \"two sentences\" }",
-          messages:[{ role:"user", content:"Today is " + today + ". Search for 8 currently open scholarships, internships, remote jobs, and international opportunities for African and Ghanaian applicants worldwide. Mix of fully funded scholarships, paid internships, remote jobs, permanent roles. Mix of levels. Return ONLY the JSON array." }]
+          system:"You track live scholarships, internships, remote jobs, fellowships, and international careers for African and Ghanaian applicants worldwide. Search the web for currently open opportunities. IMPORTANT: Every opportunity must come from a DIFFERENT organisation — do not repeat the same job title, programme name, or organisation in a single response. Each item must have a unique, working URL. Return ONLY a raw JSON array — no markdown, no code fences. Each item: { \"id\": \"unique_string\", \"title\": \"program name\", \"type\": \"fully-funded|partial|paid-internship|unpaid-internship\", \"job_type\": \"remote|permanent|contract|internship\", \"organization\": \"org name\", \"destination\": \"country or Global\", \"field\": \"subject area\", \"level\": \"undergraduate|masters|phd|professional|all\", \"deadline\": \"YYYY-MM-DD or Rolling or TBD\", \"funding\": \"what is covered\", \"link\": \"real https URL\", \"description\": \"two sentences\" }",
+          messages:[{ role:"user", content:"Today is " + today + ". Search for 8 currently open scholarships, internships, remote jobs, and international opportunities for African and Ghanaian applicants. Each must be from a different organisation — no duplicate job titles or organisations. Mix of fully funded scholarships, paid internships, remote jobs, permanent roles. Mix of levels. Return ONLY the JSON array." }]
         })
       });
       if (!res.ok) throw new Error("API error " + res.status);
@@ -123,25 +134,65 @@ export default function App() {
       if (s===-1||e<=s) throw new Error("Could not load opportunities. Please tap Refresh.");
       const parsed = JSON.parse(text.slice(s,e+1));
       if (!Array.isArray(parsed)||!parsed.length) throw new Error("No results returned");
+
       setOpps(prev => {
-        const seen = new Set(prev.map(p=>p.title?.toLowerCase().trim()));
-        const fresh = parsed.filter(p=>p.title&&!seen.has(p.title.toLowerCase().trim()));
-        return [...prev,...fresh].slice(-60);
+        // Primary key: URL. Secondary key: normalised title. Both prevent duplicates.
+        const seenUrls   = new Set(prev.map(p => p.link).filter(Boolean));
+        const seenTitles = new Set(prev.map(p => normalizeTitle(p.title)));
+        const fresh = parsed.filter(p => {
+          if (!p.title) return false;
+          if (p.link && seenUrls.has(p.link)) return false;
+          if (seenTitles.has(normalizeTitle(p.title))) return false;
+          return true;
+        });
+        const merged = [...prev, ...fresh].slice(-60);
+        // Persist to localStorage so the next page load is instant
+        try {
+          localStorage.setItem("pa_opps", JSON.stringify(merged));
+          localStorage.setItem("pa_time", String(Date.now()));
+        } catch(e) {}
+        return merged;
       });
       setUpdated(new Date());
     } catch(err) { setFetchErr("Search failed: " + err.message); }
     finally { setLoading(false); setFirstLoad(false); }
   }, []);
 
+  // ── FIX 3: Refresh every 30 minutes instead of every 60 seconds ────────────
   const doRefresh = useCallback(() => {
     clearInterval(timerRef.current);
     doFetch();
-    timerRef.current = setInterval(() => doFetch(), 60000);
+    timerRef.current = setInterval(() => doFetch(), 1800000); // 30 minutes
   }, [doFetch]);
 
+  // ── FIX 4: Load cache instantly on first render, only fetch if stale ────────
   useEffect(() => {
+    try {
+      const cached     = localStorage.getItem("pa_opps");
+      const cachedTime = localStorage.getItem("pa_time");
+      if (cached && cachedTime) {
+        const age     = Date.now() - parseInt(cachedTime, 10);
+        const maxAge  = 1800000; // 30 minutes
+        if (age < maxAge) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length) {
+            setOpps(parsed);
+            setUpdated(new Date(parseInt(cachedTime, 10)));
+            setFirstLoad(false);
+            setLoading(false);
+            // Schedule next refresh when the cache expires
+            timerRef.current = setTimeout(() => {
+              doFetch();
+              timerRef.current = setInterval(doFetch, 1800000);
+            }, maxAge - age);
+            return () => clearTimeout(timerRef.current);
+          }
+        }
+      }
+    } catch(e) {}
+    // No valid cache — fetch immediately
     doFetch();
-    timerRef.current = setInterval(() => doFetch(), 60000);
+    timerRef.current = setInterval(doFetch, 1800000);
     return () => clearInterval(timerRef.current);
   }, [doFetch]);
 
@@ -170,7 +221,8 @@ export default function App() {
     const lines=["🌍 *"+opp.title+"*","",( icon[opp.type]||"📌")+" "+(typeName[opp.type]||opp.type),"🏢 "+(opp.organization||"")];
     if(opp.destination) lines.push("📍 "+opp.destination);
     if(opp.field) lines.push("📚 "+opp.field);
-    lines.push("📅 Deadline: "+dl,"",opp.description||"","","🔗 Apply: "+opp.link,"","_Via PathAbroad · pathabroad.netlify.app_");
+    // FIX 5: Correct domain in WhatsApp shares
+    lines.push("📅 Deadline: "+dl,"",opp.description||"","","🔗 Apply: "+opp.link,"","_Via PathAbroad · pathabroad.africa_");
     window.open("https://wa.me/?text="+encodeURIComponent(lines.join("\n")),"_blank");
   };
 
@@ -268,7 +320,8 @@ export default function App() {
         <div style={{maxWidth:"720px"}}>
           <div style={{display:"inline-flex",alignItems:"center",gap:"7px",background:"#fff",border:"1px solid #BBF7D0",borderRadius:"100px",padding:"5px 14px 5px 9px",fontSize:"11px",color:"#166534",fontWeight:500,marginBottom:"28px",boxShadow:"0 1px 3px rgba(22,101,52,0.07)"}}>
             <span style={{width:"7px",height:"7px",borderRadius:"50%",background:"#16A34A",display:"inline-block",animation:"livePulse 2s infinite",flexShrink:0}}/>
-            AI searches the web every 60 seconds
+            {/* FIX 6: Honest claim — updated every 30 minutes, not 60 seconds */}
+            Updated every 30 minutes
           </div>
           <h1 style={{fontFamily:"Georgia,serif",fontSize:"clamp(32px,5.5vw,58px)",fontWeight:700,color:"#111827",lineHeight:1.08,letterSpacing:"-1.5px",margin:"0 0 20px"}}>
             Find what's open<br/><span style={{color:"#166534"}}>right now.</span>
@@ -302,7 +355,8 @@ export default function App() {
             )}
           </div>
           <div style={{display:"flex",gap:"0",flexWrap:"wrap",borderTop:"1px solid #DCFCE7",paddingTop:"20px"}}>
-            {[{icon:"↻",label:"Refreshes every 60 seconds",sub:"Always current"},{icon:"✓",label:"Open opportunities only",sub:"No expired listings"},{icon:"⊙",label:"Free — no account required",sub:"Search instantly"}].map(({icon,label,sub},i)=>(
+            {/* FIX 7: Honest feature labels */}
+            {[{icon:"↻",label:"Updated every 30 minutes",sub:"Always current"},{icon:"✓",label:"Open opportunities only",sub:"No expired listings"},{icon:"⊙",label:"Free — no account required",sub:"Search instantly"}].map(({icon,label,sub},i)=>(
               <div key={i} style={{display:"flex",alignItems:"flex-start",gap:"10px",paddingRight:"28px",marginRight:"28px",borderRight:i<2?"1px solid #DCFCE7":"none",marginBottom:"8px"}}>
                 <span style={{fontSize:"16px",color:"#166534",marginTop:"1px",flexShrink:0}}>{icon}</span>
                 <div><div style={{fontSize:"12px",fontWeight:600,color:"#111827"}}>{label}</div><div style={{fontSize:"11px",color:"#9CA3AF",marginTop:"1px"}}>{sub}</div></div>
@@ -353,7 +407,7 @@ export default function App() {
           </div>
           <main style={{padding:"20px 24px",maxWidth:"1280px",margin:"0 auto"}}>
             {firstLoad&&loading&&(<div style={{textAlign:"center",padding:"80px 20px"}}><div style={{width:"44px",height:"44px",borderRadius:"50%",border:"3px solid #DCFCE7",borderTop:"3px solid #166534",margin:"0 auto 20px",animation:"spin 0.8s linear infinite"}}/><div style={{fontSize:"15px",fontWeight:600,color:"#111827",marginBottom:"6px"}}>Scanning the globe</div><div style={{fontSize:"13px",color:"#9CA3AF"}}>Finding open opportunities for African applicants worldwide</div></div>)}
-            {fetchErr&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:"8px",padding:"10px 16px",marginBottom:"16px",color:"#991B1B",fontSize:"12px"}}>Error: {fetchErr}</div>}
+            {fetchErr&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:"8px",padding:"10px 16px",marginBottom:"16px",color:"#991B1B",fontSize:"12px"}}>Error: {fetchErr} <button onClick={doRefresh} style={{marginLeft:"8px",background:"#166534",color:"#fff",border:"none",borderRadius:"4px",padding:"3px 10px",fontSize:"11px",cursor:"pointer"}}>Retry</button></div>}
             {!firstLoad&&filtered.length===0&&!loading&&(<div style={{textAlign:"center",padding:"60px 20px",color:"#9CA3AF"}}><div style={{fontSize:"32px",marginBottom:"10px"}}>{oppTab==="saved"?"🔖":"🔍"}</div><div style={{fontSize:"14px"}}>{oppTab==="saved"?"No saved opportunities yet.":"No results match your filters."}</div></div>)}
             {!firstLoad&&filtered.length>0&&(
               <React.Fragment>
@@ -467,9 +521,9 @@ export default function App() {
       )}
 
       <footer style={{background:"#fff",borderTop:"1px solid #E5E7EB",padding:"16px 24px",textAlign:"center",fontSize:"11px",color:"#9CA3AF",marginTop:"40px"}}>
+        PathAbroad · Live opportunities · CV Builder · Relocation Guides · For African applicants worldwide
         © 2026 PathAbroad by Wilberforce K. Osei · All rights reserved · pathabroad.africa
       </footer>
     </div>
   );
 }
-
