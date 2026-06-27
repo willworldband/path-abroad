@@ -72,9 +72,22 @@ exports.handler = async (event) => {
     ];
 
     const searchResults = [];
-    for (const q of queries) {
-      try {
-        const r = await fetch(
+const searches = await Promise.allSettled(
+  queries.map(q =>
+    fetch(
+      `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(q)}&count=5&freshness=pm`,
+      { headers: { "Accept": "application/json", "X-Subscription-Token": BRAVE_KEY } }
+    ).then(r => r.json())
+  )
+);
+for (const s of searches) {
+  if (s.status === "fulfilled") {
+    const results = (s.value.web?.results || [])
+      .map(x => `Title: ${x.title}\nURL: ${x.url}\nDescription: ${x.description}`)
+      .join("\n\n");
+    if (results) searchResults.push(results);
+  }
+}
           `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(q)}&count=5&freshness=pm`,
           { headers: { "Accept": "application/json", "X-Subscription-Token": BRAVE_KEY } }
         );
