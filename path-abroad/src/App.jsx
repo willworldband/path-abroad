@@ -116,26 +116,19 @@ export default function App() {
   const doFetch = useCallback(async () => {
     setLoading(true); setFetchErr(null);
     try {
-      const today = new Date().toLocaleDateString("en-US", { month:"long", day:"numeric", year:"numeric" });
-      const res = await fetch("/.netlify/functions/anthropic", {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({
-          model:"claude-sonnet-4-6", max_tokens:4096,
-          tools:[{ type:"web_search_20250305", name:"web_search" }],
-          system:"You track live scholarships, internships, remote jobs, fellowships, and international careers for African and Ghanaian applicants worldwide. Search the web for currently open opportunities. IMPORTANT: Every opportunity must come from a DIFFERENT organisation — do not repeat the same job title, programme name, or organisation in a single response. Each item must have a unique, working URL. Return ONLY a raw JSON array — no markdown, no code fences. Each item: { \"id\": \"unique_string\", \"title\": \"program name\", \"type\": \"fully-funded|partial|paid-internship|unpaid-internship\", \"job_type\": \"remote|permanent|contract|internship\", \"organization\": \"org name\", \"destination\": \"country or Global\", \"field\": \"subject area\", \"level\": \"undergraduate|masters|phd|professional|all\", \"deadline\": \"YYYY-MM-DD or Rolling or TBD\", \"funding\": \"what is covered\", \"link\": \"real https URL\", \"description\": \"two sentences\" }",
-          messages:[{ role:"user", content:"Today is " + today + ". Search for 8 currently open scholarships, internships, remote jobs, and international opportunities for African and Ghanaian applicants. Each must be from a different organisation — no duplicate job titles or organisations. Mix of fully funded scholarships, paid internships, remote jobs, permanent roles. Mix of levels. Return ONLY the JSON array." }]
-        })
-      });
+      const res = await fetch("/.netlify/functions/get-opportunities");
       if (!res.ok) throw new Error("API error " + res.status);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error.message||"API error");
-      const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n");
-      const s=text.indexOf("["), e=text.lastIndexOf("]");
-      if (s===-1||e<=s) throw new Error("Could not load opportunities. Please tap Refresh.");
-      const parsed = JSON.parse(text.slice(s,e+1));
-      if (!Array.isArray(parsed)||!parsed.length) throw new Error("No results returned");
-
-      setOpps(prev => {
+      const parsed = await res.json();
+      if (!Array.isArray(parsed) || !parsed.length) throw new Error("No opportunities found. Please try again shortly.");
+      setOpps(parsed);
+      try {
+        localStorage.setItem("pa_opps", JSON.stringify(parsed));
+        localStorage.setItem("pa_time", String(Date.now()));
+      } catch(e) {}
+      setUpdated(new Date());
+    } catch(err) { setFetchErr("Search failed: " + err.message); }
+    finally { setLoading(false); setFirstLoad(false); }
+  }, []);
         // Primary key: URL. Secondary key: normalised title. Both prevent duplicates.
         const seenUrls   = new Set(prev.map(p => p.link).filter(Boolean));
         const seenTitles = new Set(prev.map(p => normalizeTitle(p.title)));
