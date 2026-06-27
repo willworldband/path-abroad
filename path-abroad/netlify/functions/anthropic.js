@@ -1,11 +1,11 @@
 // netlify/functions/anthropic.js
-// PathAbroad — handles two request types:
-//   1. Opportunities feed  → Brave Search + Claude to structure cards
-//   2. CV Builder          → Claude directly with the user's own prompt
+// PathAbroad — secure proxy to Anthropic API.
+// Handles two request types:
+//   1. Opportunities feed  → Claude with built-in web search tool
+//   2. CV Builder          → Claude with CV-specific prompt
 //
-// Required environment variables in Netlify:
+// Required environment variable in Netlify:
 //   ANTHROPIC_API_KEY  — from console.anthropic.com
-//   BRAVE_API_KEY      — from api-dashboard.search.brave.com
 
 exports.handler = async (event) => {
   const headers = {
@@ -19,22 +19,92 @@ exports.handler = async (event) => {
   if (event.httpMethod !== "POST")    return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
 
   const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-  const BRAVE_KEY     = process.env.BRAVE_API_KEY;
-
   if (!ANTHROPIC_KEY) return { statusCode: 500, headers, body: JSON.stringify({ error: "ANTHROPIC_API_KEY not configured." }) };
 
   try {
-    // ── Read the request body the frontend sent ─────────────────────────────
     const body = JSON.parse(event.body || "{}");
 
     // ── ROUTE 1: CV Builder ─────────────────────────────────────────────────
-    // The CV Builder sends its own system prompt about CV writing.
-    // Pass it straight to Claude — no Brave Search needed.
     if (body.system && body.system.includes("CV advisor")) {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
-          "Content-Type":            "application/json",
+          "Content-Type":      "application/json",
+          "x-api-key":         ANTHROPIC_KEY,
+          "anthropic-version": "2023-06-01",
+          "anthropic-beta":    "prompt-caching-2024-07-31",
+        },
+        body: JSON.stringify({
+          model:      body.model      || "claude-sonnet-4-6",
+          max_tokens: body.max_tokens || 1000,
+          system: [{
+            type: "text",
+            text: body.system,
+            cache_control: { type: "ephemeral" },
+          }],
+          messages: body.messages,
+        }),
+      });
+      const text = await res.text();
+      return { statusCode: res.status, headers, body: text };
+    }
+
+    // ── ROUTE 2: Opportunities feed ─────────────────────────────────────────
+    // Claude uses its built-in web search tool — no Brave needed.
+    const today = new Date().toLocaleDateString("en-US", { month:"long", day:"numeric", year:"numeric" });
+
+    const SYSTEM_PROMPT = `You are an opportunity researcher for African and Ghanaian applicants worldwide. Search the web for real, currently open opportunities and return them as structured data.
+
+STRICT RULES:
+- Every opportunity must come from a DIFFERENT organisation — never repeat the same organisation or job title.
+- Each link must go DIRECTLY to that specific opportunity's own application or information page — never link to a job board homepage, category page, search results page, or aggregator (do not link to reliefweb.int/jobs, unjobnet.com, ngojobsinafrica.com, opportunitiesforafricans.com, or any similar aggregator listing page).
+- Do NOT invent deadlines — use "Rolling" or "TBD" if unsure.
+- Return ONLY a raw JSON array — no markdown, no code fences, no explanation.
+- Classify type ACCURATELY:
+  * "fully-funded" = scholarship or fellowship covering tuition and/or living costs
+  * "partial" = scholarship covering only some costs
+  * "paid-internship" = short-term learning placement with a stipend
+  * "unpaid-internship" = short-term learning placement with no pay
+  * NEVER label a permanent job, consultancy, or professional role as "paid-internship"
+- Classify job_type ACCURATELY:
+  * "remote" = can be done from anywhere
+  * "permanent" = full-time employed position
+  * "contract" = fixed-term or consultancy role
+  * "internship" = short-term learning placement only
+
+Each item: { "id":"unique_string", "title":"program name", "type":"fully-funded|partial|paid-internship|unpaid-internship", "job_type":"remote|permanent|contract|internship", "organization":"org name", "destination":"country or Global", "field":"subject area", "level":"undergraduate|masters|phd|professional|all", "deadline":"YYYY-MM-DD or Rolling or TBD", "funding":"what is covered in one sentence", "link":"direct URL to this specific opportunity only", "description":"two sentences max" }`;
+
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type":      "application/json",
+        "x-api-key":         ANTHROPIC_KEY,
+        "anthropic-version": "2023-06-01",
+        "anthropic-beta":    "prompt-caching-2024-07-31",
+      },
+      body: JSON.stringify({
+        model:      "claude-sonnet-4-6",
+        max_tokens: 4096,
+        tools: [{ type: "web_search_20250305", name: "web_search" }],
+        system: [{
+          type: "text",
+          text: SYSTEM_PROMPT,
+          cache_control: { type: "ephemeral" },
+        }],
+        messages: [{
+          role: "user",
+          content: `Today is ${today}. Search the web and find 8 real currently open opportunities for African and Ghanaian applicants — each from a different organisation. Include a mix of fully funded scholarships, paid internships, remote jobs, and fellowships at various levels. Return ONLY the JSON array.`
+        }],
+      }),
+    });
+
+    const text = await res.text();
+    return { statusCode: res.status, headers, body: text };
+
+  } catch (err) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+  }
+};          "Content-Type":            "application/json",
           "x-api-key":               ANTHROPIC_KEY,
           "anthropic-version":       "2023-06-01",
           "anthropic-beta":          "prompt-caching-2024-07-31",
