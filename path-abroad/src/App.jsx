@@ -488,7 +488,7 @@ export default function App() {
               <div style={{background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:"10px",padding:"20px",textAlign:"center"}}>
                 <div style={{fontSize:"14px",color:"#92400E",fontWeight:600,marginBottom:"5px"}}>Want a professional polish?</div>
                 <div style={{fontSize:"12px",color:"#B45309",marginBottom:"16px",lineHeight:1.6}}>Send your AI draft to Will for a human-reviewed, submission-ready CV delivered in 24 hours.</div>
-                <button onClick={sendToWill} style={{background:"#B45309",color:"#fff",border:"none",borderRadius:"7px",padding:"10px 24px",fontSize:"13px",fontWeight:600,cursor:"pointer"}}>📱 Get Professional Review — WhatsApp Will</button>
+                <button onClick={sendToWill} style={{background:"#B45309",color:"#fff",border:"none",borderRadius:"7px",padding:"10px 24px",fontSize:"13px",fontWeight:600,cursor:"pointer"}}>📱 Get a Human Review in 24 Hours</button>
               </div>
             </div>
           )}
@@ -522,7 +522,7 @@ export default function App() {
 
       <footer style={{background:"#fff",borderTop:"1px solid #E5E7EB",padding:"16px 24px",textAlign:"center",fontSize:"11px",color:"#9CA3AF",marginTop:"40px"}}>
         PathAbroad · Live opportunities · CV Builder · Relocation Guides · For African applicants worldwide
-        © 2026 PathAbroad by Wilberforce K. Osei · All rights reserved · pathabroad.africa
+        © 2026 PathAbroad · All rights reserved
       </footer>
     </div>
   );
