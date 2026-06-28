@@ -268,9 +268,9 @@ export default function App() {
   }, [cvForm]);
 
   const sendToWill = () => {
-    const lines=["Hi Will, I used PathAbroad and need a professional CV review.",""];
+    const lines=["Hi, I used PathAbroad and need a professional CV review.",""];
     if(selectedOpp){ lines.push("🎯 *Target Opportunity*","📋 "+selectedOpp.title,"🏢 "+(selectedOpp.organization||""),"📅 Deadline: "+(selectedOpp.deadline||"TBD"),""); }
-    lines.push("📄 *AI-Generated CV Summary*",cvResult&&cvResult.summary?cvResult.summary:"","","Can you professionally review this for submission?");
+    lines.push("📄 *AI-Generated CV Summary*",cvResult&&cvResult.summary?cvResult.summary:"","","Please professionally review this for submission.");
     window.open("https://wa.me/"+WILL_WHATSAPP+"?text="+encodeURIComponent(lines.join("\n")),"_blank");
   };
 
