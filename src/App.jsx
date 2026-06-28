@@ -459,7 +459,7 @@ export default function App() {
               {cvResult.tip&&(<div style={{background:"#F0FDF4",border:"1px solid #DCFCE7",borderLeft:"3px solid #166534",borderRadius:"0 6px 6px 0",padding:"12px 16px"}}><div style={{fontSize:"10px",color:"#166534",letterSpacing:"0.5px",textTransform:"uppercase",marginBottom:"5px"}}>Application Tip</div><div style={{fontSize:"13px",color:"#374151",lineHeight:1.65}}>{cvResult.tip}</div></div>)}
               <div style={{background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:"10px",padding:"20px",textAlign:"center"}}>
                 <div style={{fontSize:"14px",color:"#92400E",fontWeight:600,marginBottom:"5px"}}>Want a professional polish?</div>
-                <div style={{fontSize:"12px",color:"#B45309",marginBottom:"16px",lineHeight:1.6}}>Send your AI draft to Will for a human-reviewed, submission-ready CV delivered in 24 hours.</div>
+                <div style={{fontSize:"12px",color:"#B45309",marginBottom:"16px",lineHeight:1.6}}>Send your AI draft for a professional human review — get a submission-ready CV back within 24 hours.</div>
                 <button onClick={sendToWill} style={{background:"#B45309",color:"#fff",border:"none",borderRadius:"7px",padding:"10px 24px",fontSize:"13px",fontWeight:600,cursor:"pointer"}}>📱 Get Professional Review — WhatsApp Will</button>
               </div>
             </div>
