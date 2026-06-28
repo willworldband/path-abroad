@@ -460,7 +460,7 @@ export default function App() {
               <div style={{background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:"10px",padding:"20px",textAlign:"center"}}>
                 <div style={{fontSize:"14px",color:"#92400E",fontWeight:600,marginBottom:"5px"}}>Want a professional polish?</div>
                 <div style={{fontSize:"12px",color:"#B45309",marginBottom:"16px",lineHeight:1.6}}>Send your AI draft for a professional human review — get a submission-ready CV back within 24 hours.</div>
-                <button onClick={sendToWill} style={{background:"#B45309",color:"#fff",border:"none",borderRadius:"7px",padding:"10px 24px",fontSize:"13px",fontWeight:600,cursor:"pointer"}}>📱 Get Professional Review — WhatsApp Will</button>
+                <button onClick={sendToWill} style={{background:"#B45309",color:"#fff",border:"none",borderRadius:"7px",padding:"10px 24px",fontSize:"13px",fontWeight:600,cursor:"pointer"}}>📱Get a Human Review in 24 Hours</button>
               </div>
             </div>
           )}
